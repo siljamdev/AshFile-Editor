@@ -360,9 +360,9 @@ public class Editor{
 		Console.WriteLine();
 		Console.WriteLine("An AshFile is a file format that has .ash extension, but it also represents a structure of data.");
 		Console.WriteLine("This structure is based in multiple pockets of information. This pockets are called camps.");
-		Console.WriteLine("Each camp has a name and a value. This value can be many things. (Type typelisto for a full list)");
+		Console.WriteLine("Each camp has a name and a value. This value can be many things. (Type typelist for a full list)");
 		Console.WriteLine("For example, you could have a camp named \"debt\", with its value being a number and being 12000.");
-		Console.WriteLine("This structure can be used in programming projects wwith the AshFile nuget package.");
+		Console.WriteLine("This structure can be used in programming projects wwith the AshLib nuget package.");
 		Console.WriteLine("This Editor is just a way to make it possible to edit AshFiles without having to code.");
 	}
 	
