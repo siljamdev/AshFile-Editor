@@ -12,13 +12,13 @@ This Editor is just a way to make it possible to edit AshFiles without having to
 ## How to use this editor
 You can directly open .ash files with the executable, or open the executable first and then loading the file. Or you can create new files and then save them.
 The editor is console-based. You type commands to do things.
-To get a list of all the available command, you can type >help< in the editor.
+To get a list of all the available command, you can type `help` in the editor.
 
 Once you have a file, there is a bunch of things you can do.
-You can see the whole data of the file with the command >see<. This is very useful for actually visualizing what is in the file.
-You can set the value of a camp, or create a new one with the command >set<.
-You can get the value of a camp in great detail with the command >get<.
-You can delete a camp with the command >delete<.
-You can change the name of a camp with the command >rename<.
+You can see the whole data of the file with the command `see`. This is very useful for actually visualizing what is in the file.
+You can set the value of a camp, or create a new one with the command `set`.
+You can get the value of a camp in great detail with the command `get`.
+You can delete a camp with the command `delete`.
+You can change the name of a camp with the command `rename`.
 
 The Editor is in the version v1.0 and supports v1 AshFiles.
