@@ -16,8 +16,13 @@ public class Editor{
 		hasBeenSaved = true;
 		af = new AshFile();
 		if(args.Length > 0){
-			path = args[0]; //Load path if arguments
-			loadFromPath(); //Load it
+			path = removeQuotes(args[0]); //Load path if arguments
+			if(!loadFromPath()){
+				newBlank();
+			} else {
+				Console.WriteLine("File loaded");
+				see();
+			}
 		} else {
 			newBlank();
 		}
@@ -258,7 +263,9 @@ public class Editor{
 			Console.WriteLine("There is no path asociated with this file");
 			return;
 		}
-		loadFromPath();
+		if(!loadFromPath()){
+			return;
+		}
 		Console.WriteLine("File reloaded succesfully.");
 		hasBeenSaved = true;
 	}
@@ -282,7 +289,9 @@ public class Editor{
 	public static void load(){
 		askToSave();
 		askPath();
-		loadFromPath();
+		if(!loadFromPath()){
+			return;
+		}
 		Console.WriteLine("File loaded succesfully.");
 		hasBeenSaved = true;
 	}
@@ -290,7 +299,7 @@ public class Editor{
 	public static void askPath(){
 		Console.Write("Please enter the path: ");
 		string answer = Console.ReadLine();
-		path = answer;
+		path = removeQuotes(answer);
 	}
 	
 	public static void askToSave(){
@@ -321,12 +330,29 @@ public class Editor{
 		af.Save(path);
 	}
 	
-	public static void loadFromPath(){
+	public static bool loadFromPath(){
+		if(!File.Exists(path)){
+			path = null;
+			Console.WriteLine("Could not load from path becaue the file doesnt exist.");
+			return false;
+		}
 		af.Load(path);
+		return true;
 	}
 	
 	public static void see(){
 		Console.WriteLine(af.AsString());
+	}
+	
+	public static string removeQuotes(string p){
+		char[] c = p.ToCharArray();
+		if(c[0] == '\"' && c[c.Length - 1] == '\"'){
+			if(c.Length < 2){
+				return "";
+			}
+			return p.Substring(1, p.Length - 2);
+		}
+		return p;
 	}
 	
 	public static void printHelp(){
@@ -367,7 +393,7 @@ public class Editor{
 	}
 	
 	public static void info(){
-		Console.WriteLine("The current version of AshFile Editor is v1.0");
+		Console.WriteLine("The current version of AshFile Editor is v1.0.1");
 		Console.WriteLine("This version is prepared to support v1 AshFiles");
 		Console.WriteLine();
 		Console.WriteLine("It was made by Dumbelfo for the AshProject");
