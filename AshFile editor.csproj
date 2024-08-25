@@ -2,15 +2,17 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net7.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <RootNamespace>AshFile_editor</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
 	<ApplicationIcon>ashfile.ico</ApplicationIcon>
+	<Version>2.0.0</Version>
+    <Authors>Dumbelfo</Authors>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="AshLib" Version="2.0.1" />
+    <PackageReference Include="AshLib" Version="2.1.0" />
   </ItemGroup>
 
 </Project>
