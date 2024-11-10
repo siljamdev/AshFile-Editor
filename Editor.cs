@@ -6,6 +6,7 @@ public class Editor{
 	static string? path;
 	static AshFile af;
 	static bool hasBeenSaved;
+	static bool isFile;
 	
 	public static void Main(string[] args){
 		hasBeenSaved = true;
@@ -99,6 +100,16 @@ public class Editor{
 	public static void setCamp(){
 		string name = askName();
 		AshLib.Type t = askType();
+		if(isFile){
+			string p = askFilePath();
+			if(!File.Exists(p)){
+				Console.WriteLine("That file does not exist.");
+				return;
+			}
+			af.SetCamp(name, File.ReadAllText(p));
+			hasBeenSaved = false;
+			return;
+		}
 		CampValue o = askValue(t);
 		af.SetCamp(name, o);
 		hasBeenSaved = false;
@@ -551,6 +562,10 @@ public class Editor{
 				Console.WriteLine();
 				continue;
 			}
+			if(answer == "file"){
+				isFile = true;
+				return AshLib.Type.String;
+			}
 			AshLib.Type t = getTypeFromString(answer);
 			if(t != AshLib.Type.Invalid){
 				return t;
@@ -751,6 +766,12 @@ public class Editor{
 		hasBeenSaved = true;
 	}
 	
+	public static string askFilePath(){
+		Console.Write("Please enter the path to the file: ");
+		string answer = Console.ReadLine();
+		return removeQuotes(answer);
+	}
+	
 	public static void askPath(){
 		Console.Write("Please enter the path: ");
 		string answer = Console.ReadLine();
@@ -863,6 +884,7 @@ public class Editor{
 		Console.WriteLine("\"bool\" for true/false values.");
 		Console.WriteLine("\"float\" for 32-bit floating-point numbers (numbers with decimals).");
 		Console.WriteLine("\"color\" for RGB color values.");
+		Console.WriteLine("\"file\" for copying the contents of a file(as text) based on its path.");
 		Console.WriteLine("\"date\" for date/time values.");
 		Console.WriteLine("\"vec2\" for 2D vectors.");
 		Console.WriteLine("\"vec3\" for 3D vectors.");
