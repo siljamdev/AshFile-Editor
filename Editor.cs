@@ -104,10 +104,12 @@ public class Editor{
 			string p = askFilePath();
 			if(!File.Exists(p)){
 				Console.WriteLine("That file does not exist.");
+				isFile = false;
 				return;
 			}
 			af.SetCamp(name, File.ReadAllText(p));
 			hasBeenSaved = false;
+			isFile = false;
 			return;
 		}
 		CampValue o = askValue(t);
