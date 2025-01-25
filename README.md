@@ -1,4 +1,4 @@
-https://github.com/siljamdev/AshFile-Editor.git# AshFile Editor
+# AshFile Editor
 Simple editor for AshFiles so no code is necessary to edit them
 
 ## What is an AshFile?
