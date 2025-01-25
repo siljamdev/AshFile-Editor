@@ -928,10 +928,10 @@ public class Editor{
 	}
 	
 	public static void info(){
-		Console.WriteLine("The current version of AshFile Editor is v2.0.0");
+		Console.WriteLine("The current version of AshFile Editor is v2.0.2");
 		Console.WriteLine("This version is prepared to support v2 AshFiles");
 		Console.WriteLine();
-		Console.WriteLine("It was made by Dumbelfo for the AshProject");
+		Console.WriteLine("It was made by Siljam for the AshProject");
 	}
 	
 	public static void exit(){
