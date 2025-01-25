@@ -8,10 +8,10 @@
 	<Nullable>enable</Nullable>
 	
 	<Version>2.0.2</Version>
-    <Authors>Dumbelfo</Authors> 
+    <Authors>siljam</Authors> 
     <Company>AshProject</Company>
 	<PackageDescription>Simple editor for AshFiles</PackageDescription>
-	<RepositoryUrl>https://github.com/Dumbelfo08/AshFile-Editor</RepositoryUrl>
+	<RepositoryUrl>https://github.com/siljamdev/AshFile-Editor</RepositoryUrl>
 	
 	<ApplicationIcon>ashfile.ico</ApplicationIcon>
   </PropertyGroup>
