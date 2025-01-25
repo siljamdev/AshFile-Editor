@@ -1,4 +1,4 @@
-# AshFile Editor
+https://github.com/siljamdev/AshFile-Editor.git# AshFile Editor
 Simple editor for AshFiles so no code is necessary to edit them
 
 ## What is an AshFile?
@@ -21,4 +21,4 @@ You can get the value of a camp in great detail with the command `get`.
 You can delete a camp with the command `delete`.
 You can change the name of a camp with the command `rename`.
 
-The Editor is in the version v1.0 and supports v1 AshFiles.
+The Editor is in the version v2.0 and supports v2 AshFiles.
