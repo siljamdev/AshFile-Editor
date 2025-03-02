@@ -936,7 +936,7 @@ public class Editor{
 	}
 	
 	public static void info(){
-		writeLine("The current version of AshFile Editor is v3.0.0", purple);
+		writeLine("The current version of AshFile Editor is v3.0.1", purple);
 		writeLine("This version is prepared to support v3 AshFiles", purple);
 		writeLine();
 		writeLine("It was made by Siljam for the AshProject", red);
