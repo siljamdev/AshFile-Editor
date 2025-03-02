@@ -15,13 +15,9 @@
 	
 	<ApplicationIcon>res/ashfile.ico</ApplicationIcon>
   </PropertyGroup>
-  
-  <PropertyGroup Condition=" '$(OS)' == 'Windows_NT' ">
-    <DefineConstants>WINDOWS</DefineConstants>
-  </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="AshLib" Version="3.2.1" />
+    <PackageReference Include="AshLib" Version="3.2.2" />
   </ItemGroup>
 
 </Project>

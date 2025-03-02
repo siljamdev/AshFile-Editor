@@ -8,33 +8,7 @@ using AshLib.Folders;
 using AshLib.Dates;
 using AshLib;
 
-public class Editor{
-	
-	#if WINDOWS
-		private const int  STD_OUTPUT_HANDLE = -11;
-		private const uint ENABLE_PROCESSED_OUTPUT = 0x0001;
-		private const uint ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004;
-		
-		[DllImport("kernel32")]
-		private static extern bool GetConsoleMode(IntPtr hConsoleHandle, out uint lpMode);
-		
-		[DllImport("kernel32")]
-		private static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
-		
-		[DllImport("kernel32")]
-		private static extern IntPtr GetStdHandle(int nStdHandle);
-		
-		//================================
-	#endif
-	
-	#if WINDOWS
-		private static void prepareConsole(){
-			var iStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
-			var _ = GetConsoleMode(iStdOut, out var outConsoleMode)
-			&& SetConsoleMode(iStdOut, outConsoleMode | ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
-		}
-	#endif
-	
+public class Editor{	
 	static string? path;
 	static AshFile af;
 	static bool hasBeenSaved;
