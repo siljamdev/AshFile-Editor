@@ -1,14 +1,62 @@
 ﻿using System;
+using System.Text;
 using System.Globalization;
+using System.Runtime.InteropServices;
+using AshLib.Formatting;
+using AshLib.AshFiles;
+using AshLib.Folders;
+using AshLib.Dates;
 using AshLib;
 
 public class Editor{
+	
+	#if WINDOWS
+		private const int  STD_OUTPUT_HANDLE = -11;
+		private const uint ENABLE_PROCESSED_OUTPUT = 0x0001;
+		private const uint ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004;
+		
+		[DllImport("kernel32")]
+		private static extern bool GetConsoleMode(IntPtr hConsoleHandle, out uint lpMode);
+		
+		[DllImport("kernel32")]
+		private static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
+		
+		[DllImport("kernel32")]
+		private static extern IntPtr GetStdHandle(int nStdHandle);
+		
+		//================================
+	#endif
+	
+	#if WINDOWS
+		private static void prepareConsole(){
+			var iStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
+			var _ = GetConsoleMode(iStdOut, out var outConsoleMode)
+			&& SetConsoleMode(iStdOut, outConsoleMode | ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+		}
+	#endif
+	
 	static string? path;
 	static AshFile af;
 	static bool hasBeenSaved;
 	static bool isFile;
 	
+	static Color3 red = new Color3("E7484B");
+	static Color3 paleRed = new Color3("E57272");
+	static Color3 purple = new Color3("9F60C1");
+	static Color3 error = new Color3("7D60E5");
+	
+	static Dependencies dep;
+	
 	public static void Main(string[] args){
+		string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+		dep = new Dependencies(appDataPath + "/ashproject/ashfileeditor", true, null, null);
+		
+		initializeConfig();
+		
+		#if WINDOWS
+			prepareConsole();
+		#endif
+		
 		hasBeenSaved = true;
 		af = new AshFile();
 		if(args.Length > 0){
@@ -16,7 +64,7 @@ public class Editor{
 			if(!loadFromPath()){
 				newBlank();
 			} else {
-				Console.WriteLine(Path.GetFileName(path) + " loaded succesfully.");
+				writeLine(Path.GetFileName(path) + " loaded succesfully.", purple);
 				see();
 			}
 		} else {
@@ -26,8 +74,8 @@ public class Editor{
 		string command;
 		while(true){
 			try{
-			Console.WriteLine();
-			Console.WriteLine("What do you want to do?: ");
+			writeLine();
+			writeLine("What do you want to do?: ", red);
 			command = Console.ReadLine();
 			command = command.ToLower();
 			
@@ -53,6 +101,15 @@ public class Editor{
 					break;
 				case "save":
 					save();
+					break;
+				case "import":
+					import();
+					break;
+				case "export":
+					export();
+					break;
+				case "config":
+					loadConfig();
 					break;
 				case "see":
 				case "visualize":
@@ -86,24 +143,44 @@ public class Editor{
 					exit();
 					break;
 				default:
-					Console.WriteLine("Command not found. Write help for list of commands.");
+					writeLine("Command not found. Write help for list of commands.", error);
 					break;
 			}
 			} catch(Exception e){
-				Console.WriteLine("An error occured! Here is more info:");
-				Console.WriteLine("Message: " + e.Message);
-				Console.WriteLine("Stack Trace: " + e.StackTrace);
+				writeLine("An error occured! Here is more info:", error);
+				writeLine("Message: " + e.Message);
+				writeLine("Stack Trace: " + e.StackTrace);
 			}
 		}
 	}
 	
+	public static void initializeConfig(){
+		AshFileModel afm = new AshFileModel(new ModelInstance(ModelInstanceOperation.Type, "visualizeAsTree", false),
+		new ModelInstance(ModelInstanceOperation.Type, "useColors", true),
+		new ModelInstance(ModelInstanceOperation.Type, "successColor", purple),
+		new ModelInstance(ModelInstanceOperation.Type, "questionColor", red),
+		new ModelInstance(ModelInstanceOperation.Type, "questionColor2", paleRed),
+		new ModelInstance(ModelInstanceOperation.Type, "errorColor", error));
+		
+		afm.deleteNotMentioned = true;
+		
+		dep.config *= afm;
+		
+		dep.config.Save();
+		
+		purple = dep.config.GetCamp<Color3>("successColor");
+		red = dep.config.GetCamp<Color3>("questionColor");
+		paleRed = dep.config.GetCamp<Color3>("questionColor2");
+		error = dep.config.GetCamp<Color3>("errorColor");
+	}
+	
 	public static void setCamp(){
 		string name = askName();
-		AshLib.Type t = askType();
+		AshFileType t = askType(out bool array);
 		if(isFile){
 			string p = askFilePath();
 			if(!File.Exists(p)){
-				Console.WriteLine("That file does not exist.");
+				writeLine("That file does not exist.", error);
 				isFile = false;
 				return;
 			}
@@ -112,26 +189,48 @@ public class Editor{
 			isFile = false;
 			return;
 		}
-		CampValue o = askValue(t);
+		object o;
+		if(array){
+			o = askValueArray(t);
+		}else{
+			o = askValue(t);
+		}
 		af.SetCamp(name, o);
 		hasBeenSaved = false;
 	}
 	
 	public static void getCamp(){
 		string name = askName();
-		CampValue o;
-		if(!af.CanGetCampValue(name, out o)){
-			Console.WriteLine("There is no camp named \"" + name + "\".");
+		object o;
+		if(!af.CanGetCamp(name, out o)){
+			writeLine("There is no camp named '" + name + "'.", error);
 			return;
 		}
-		AshLib.Type t = o.type;
-		Console.WriteLine("Camp name: " + name + " | Type: " + getTypeName(t) + " | Value: " + o);
+		if(o.GetType().IsArray){
+			AshFileType t = getFileTypeFromType(o.GetType().GetElementType());
+			StringBuilder sb = new StringBuilder();
+			bool f = true;
+			foreach(var j in (Array) o){
+				if(!f){
+					sb.Append(",");
+				}
+				f = false;
+				
+				sb.Append(j.ToString());
+				writeLine("Camp name: " + name + " | Type: " + getTypeName(t) + " Array | Values: [" + sb.ToString() + "]");
+			}
+		}else{
+			AshFileType t = getFileTypeFromType(o.GetType());
+			writeLine("Camp name: " + name + " | Type: " + getTypeName(t) + " | Value: " + o.ToString());
+		}
+		
+		//writeLine("Camp name: " + name + " | Type: " + getTypeName(t) + " | Value: " + o.ToString());
 	}
 	
 	public static void deleteCamp(){
 		string name = askName();
 		if(!af.CanDeleteCamp(name)){
-			Console.WriteLine("There is no camp named \"" + name + "\".");
+			writeLine("There is no camp named \"" + name + "\".");
 			return;
 		}
 		hasBeenSaved = false;
@@ -140,7 +239,7 @@ public class Editor{
 	public static void renameCamp(){
 		string oldName = askOldName();
 		if(!af.ExistsCamp(oldName)){
-			Console.WriteLine("There is no camp named \"" + oldName + "\".");
+			writeLine("There is no camp named \"" + oldName + "\".", error);
 			return;
 		}
 		string newName = askNewName();
@@ -148,582 +247,501 @@ public class Editor{
 		hasBeenSaved = false;
 	}
 	
-	public static CampValue askValue(AshLib.Type t){
-		while(true){
-			start:
-			Console.Write("Please enter the value of the camp: ");
+	public static Type getTypeFromEnum(AshFileType fileType){
+		switch (fileType){
+			case AshFileType.String: return typeof(string);
+			case AshFileType.Byte: return typeof(byte);
+			case AshFileType.Ushort: return typeof(ushort);
+			case AshFileType.Uint: return typeof(uint);
+			case AshFileType.Ulong: return typeof(ulong);
+			case AshFileType.Sbyte: return typeof(sbyte);
+			case AshFileType.Short: return typeof(short);
+			case AshFileType.Int: return typeof(int);
+			case AshFileType.Long: return typeof(long);
+			case AshFileType.Color3: return typeof(Color3); // Example for Color3 (need a proper type here)
+			case AshFileType.Float: return typeof(float);
+			case AshFileType.Double: return typeof(double);
+			case AshFileType.Vec2: return typeof(Vec2); // Example for Vec2
+			case AshFileType.Vec3: return typeof(Vec3); // Example for Vec3
+			case AshFileType.Vec4: return typeof(Vec4); // Example for Vec4
+			case AshFileType.Bool: return typeof(bool);
+			case AshFileType.Date: return typeof(Date);
+			default: return typeof(object); // Default case if no matching type
+		}
+	}
+	
+	public static AshFileType getFileTypeFromType(Type type){
+		if (type == typeof(string)) return AshFileType.String;
+		if (type == typeof(byte)) return AshFileType.Byte;
+		if (type == typeof(ushort)) return AshFileType.Ushort;
+		if (type == typeof(uint)) return AshFileType.Uint;
+		if (type == typeof(ulong)) return AshFileType.Ulong;
+		if (type == typeof(sbyte)) return AshFileType.Sbyte;
+		if (type == typeof(short)) return AshFileType.Short;
+		if (type == typeof(int)) return AshFileType.Int;
+		if (type == typeof(long)) return AshFileType.Long;
+		if (type == typeof(Color3)) return AshFileType.Color3;
+		if (type == typeof(float)) return AshFileType.Float;
+		if (type == typeof(double)) return AshFileType.Double;
+		if (type == typeof(Vec2)) return AshFileType.Vec2;
+		if (type == typeof(Vec3)) return AshFileType.Vec3;
+		if (type == typeof(Vec4)) return AshFileType.Vec4;
+		if (type == typeof(bool)) return AshFileType.Bool;
+		if (type == typeof(Date)) return AshFileType.Date;
+	
+		return AshFileType.Default; // Default case if no matching type
+	}
+	
+	public static object askValueArray(AshFileType t){
+		Type listType = typeof(List<>).MakeGenericType(getTypeFromEnum(t));
+		dynamic list = Activator.CreateInstance(listType);
+		
+		writeLine("Enter 'end' to stop adding elements to the array", purple);
+		
+		int i = 0;
+		
+		bool flag = true;
+		
+		while(flag){
+			write("Please enter the " + i + "th element of the " + getTypeName(t) + "array: ", paleRed);
 			string answer = Console.ReadLine();
 			
-			switch(t){
-				case AshLib.Type.ByteArray:
-					string[] a = answer.Split(",");
-					if(a.Length < 1){
-						return new CampValue((byte[]) null);
-					}
-					byte[] b = new byte[a.Length];
-					for(int i = 0; i < a.Length; i++){
-						byte c;
-						if(!byte.TryParse(a[i], out c)){
-							Console.WriteLine("The element number " + i + " is not in a correct format. Please enter again.");
-							Console.WriteLine();
-							goto start;
-						}
-						b[i] = c;
-					}
-					return new CampValue(b);
-				case AshLib.Type.String:
-					return new CampValue(answer);
-				case AshLib.Type.Byte:
-					byte d;
-					if(!byte.TryParse(answer, out d)){
-						Console.WriteLine("That number is in an invalid format. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					return new CampValue(d);
-				case AshLib.Type.Ushort:
-					ushort e;
-					if(!ushort.TryParse(answer, out e)){
-						Console.WriteLine("That number is in an invalid format. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					return new CampValue(e);
-				case AshLib.Type.Uint:
-					uint f;
-					if(!uint.TryParse(answer, out f)){
-						Console.WriteLine("That number is in an invalid format. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					return new CampValue(f);
-				case AshLib.Type.Ulong:
-					ulong g;
-					if(!ulong.TryParse(answer, out g)){
-						Console.WriteLine("That number is in an invalid format. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					return new CampValue(g);
-				case AshLib.Type.Sbyte:
-					sbyte h;
-					if(!sbyte.TryParse(answer, out h)){
-						Console.WriteLine("That number is in an invalid format. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					return new CampValue(h);
-				case AshLib.Type.Short:
-					short j;
-					if(!short.TryParse(answer, out j)){
-						Console.WriteLine("That number is in an invalid format. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					return new CampValue(j);
-				case AshLib.Type.Int:
-					int k;
-					if(!int.TryParse(answer, out k)){
-						Console.WriteLine("That number is in an invalid format. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					return new CampValue(k);
-				case AshLib.Type.Long:
-					long l;
-					if(!long.TryParse(answer, out l)){
-						Console.WriteLine("That number is in an invalid format. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					return new CampValue(l);
-				case AshLib.Type.Color:
-					if(answer[0] == '#'){
-						return new CampValue(new Color3(answer));
-					}
-					a = answer.Split(",");
-					if(a.Length != 3){
-						Console.WriteLine("There is not the correct amount of arguments. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					byte r1, r2, r3;
-					if(!byte.TryParse(a[0], out r1)){
-						Console.WriteLine("The first number is in an invalid format. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					if(!byte.TryParse(a[1], out r2)){
-						Console.WriteLine("The second number is in an invalid format. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					if(!byte.TryParse(a[2], out r3)){
-						Console.WriteLine("The third number is in an invalid format. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					return new CampValue(new Color3(r1, r2, r3));
-				case AshLib.Type.Float:
-					float m;
-					if(!float.TryParse(answer, out m)){
-						Console.WriteLine("That number is in an invalid format. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					return new CampValue(m);
-				case AshLib.Type.Double:
-					double n;
-					if(!double.TryParse(answer, out n)){
-						Console.WriteLine("That number is in an invalid format. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					return new CampValue(n);
-				case AshLib.Type.Vec2:
-					a = answer.Split(",");
-					if(a.Length != 2){
-						Console.WriteLine("There is not the correct amount of arguments. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					float s1, s2, s3, s4;
-					if(!float.TryParse(a[0], out s1)){
-						Console.WriteLine("The first number is in an invalid format. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					if(!float.TryParse(a[1], out s2)){
-						Console.WriteLine("The second number is in an invalid format. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					return new CampValue(new Vec2(s1, s2));
-				case AshLib.Type.Vec3:
-					a = answer.Split(",");
-					if(a.Length != 3){
-						Console.WriteLine("There is not the correct amount of arguments. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					if(!float.TryParse(a[0], out s1)){
-						Console.WriteLine("The first number is in an invalid format. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					if(!float.TryParse(a[1], out s2)){
-						Console.WriteLine("The second number is in an invalid format. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					if(!float.TryParse(a[2], out s3)){
-						Console.WriteLine("The second number is in an invalid format. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					return new CampValue(new Vec3(s1, s2, s3));
-				case AshLib.Type.Vec4:
-					a = answer.Split(",");
-					if(a.Length != 4){
-						Console.WriteLine("There is not the correct amount of arguments. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					if(!float.TryParse(a[0], out s1)){
-						Console.WriteLine("The first number is in an invalid format. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					if(!float.TryParse(a[1], out s2)){
-						Console.WriteLine("The second number is in an invalid format. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					if(!float.TryParse(a[2], out s3)){
-						Console.WriteLine("The third number is in an invalid format. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					if(!float.TryParse(a[3], out s4)){
-						Console.WriteLine("The forth number is in an invalid format. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					return new CampValue(new Vec4(s1, s2, s3, s4));
-				case AshLib.Type.Bool:
-					answer = answer.ToLower();
-					if(answer == "true" || answer == "t"){
-						return new CampValue(true);
-					} else if(answer == "false" || answer == "f"){
-						return new CampValue(false);
-					}
-					Console.WriteLine("That boolean value is in an invalid format. Please enter true/false value.");
-					Console.WriteLine();
-					goto start;
-				case AshLib.Type.UbyteArray:
-					a = answer.Split(",");
-					if(a.Length < 1){
-						return new CampValue((byte[]) null);
-					}
-					b = new byte[a.Length];
-					for(int i = 0; i < a.Length; i++){
-						byte c;
-						if(!byte.TryParse(a[i], out c)){
-							Console.WriteLine("The element number " + i + " is not in a correct format. Please enter again.");
-							Console.WriteLine();
-							goto start;
-						}
-						b[i] = c;
-					}
-					return new CampValue(b);
-				case AshLib.Type.UshortArray:
-					a = answer.Split(",");
-					if(a.Length < 1){
-						return new CampValue((ushort[]) null);
-					}
-					ushort[] o = new ushort[a.Length];
-					for(int i = 0; i < a.Length; i++){
-						ushort p;
-						if(!ushort.TryParse(a[i], out p)){
-							Console.WriteLine("The element number " + i + " is not in a correct format. Please enter again.");
-							Console.WriteLine();
-							goto start;
-						}
-						o[i] = p;
-					}
-					return new CampValue(o);
-				case AshLib.Type.UintArray:
-					a = answer.Split(",");
-					if(a.Length < 1){
-						return new CampValue((uint[]) null);
-					}
-					uint[] q = new uint[a.Length];
-					for(int i = 0; i < a.Length; i++){
-						uint r;
-						if(!uint.TryParse(a[i], out r)){
-							Console.WriteLine("The element number " + i + " is not in a correct format. Please enter again.");
-							Console.WriteLine();
-							goto start;
-						}
-						q[i] = r;
-					}
-					return new CampValue(q);
-				case AshLib.Type.UlongArray:
-					a = answer.Split(",");
-					if(a.Length < 1){
-						return new CampValue((ulong[]) null);
-					}
-					ulong[] s = new ulong[a.Length];
-					for(int i = 0; i < a.Length; i++){
-						ulong u;
-						if(!ulong.TryParse(a[i], out u)){
-							Console.WriteLine("The element number " + i + " is not in a correct format. Please enter again.");
-							Console.WriteLine();
-							goto start;
-						}
-						s[i] = u;
-					}
-					return new CampValue(s);
-				case AshLib.Type.SbyteArray:
-					a = answer.Split(",");
-					if(a.Length < 1){
-						return new CampValue((sbyte[]) null);
-					}
-					sbyte[] aa = new sbyte[a.Length];
-					for(int i = 0; i < a.Length; i++){
-						sbyte r;
-						if(!sbyte.TryParse(a[i], out r)){
-							Console.WriteLine("The element number " + i + " is not in a correct format. Please enter again.");
-							Console.WriteLine();
-							goto start;
-						}
-						aa[i] = r;
-					}
-					return new CampValue(aa);
-				case AshLib.Type.ShortArray:
-					a = answer.Split(",");
-					if(a.Length < 1){
-						return new CampValue((short[]) null);
-					}
-					short[] ab = new short[a.Length];
-					for(int i = 0; i < a.Length; i++){
-						short r;
-						if(!short.TryParse(a[i], out r)){
-							Console.WriteLine("The element number " + i + " is not in a correct format. Please enter again.");
-							Console.WriteLine();
-							goto start;
-						}
-						ab[i] = r;
-					}
-					return new CampValue(ab);
-				case AshLib.Type.IntArray:
-					a = answer.Split(",");
-					if(a.Length < 1){
-						return new CampValue((int[]) null);
-					}
-					int[] ac = new int[a.Length];
-					for(int i = 0; i < a.Length; i++){
-						int r;
-						if(!int.TryParse(a[i], out r)){
-							Console.WriteLine("The element number " + i + " is not in a correct format. Please enter again.");
-							Console.WriteLine();
-							goto start;
-						}
-						ac[i] = r;
-					}
-					return new CampValue(ac);
-				case AshLib.Type.LongArray:
-					a = answer.Split(",");
-					if(a.Length < 1){
-						return new CampValue((long[]) null);
-					}
-					long[] ad = new long[a.Length];
-					for(int i = 0; i < a.Length; i++){
-						long r;
-						if(!long.TryParse(a[i], out r)){
-							Console.WriteLine("The element number " + i + " is not in a correct format. Please enter again.");
-							Console.WriteLine();
-							goto start;
-						}
-						ad[i] = r;
-					}
-					return new CampValue(ad);
-				case AshLib.Type.FloatArray:
-					a = answer.Split(",");
-					if(a.Length < 1){
-						return new CampValue((float[]) null);
-					}
-					float[] ae = new float[a.Length];
-					for(int i = 0; i < a.Length; i++){
-						float r;
-						if(!float.TryParse(a[i], out r)){
-							Console.WriteLine("The element number " + i + " is not in a correct format. Please enter again.");
-							Console.WriteLine();
-							goto start;
-						}
-						ae[i] = r;
-					}
-					return new CampValue(ae);
-				case AshLib.Type.DoubleArray:
-					a = answer.Split(",");
-					if(a.Length < 1){
-						return new CampValue((long[]) null);
-					}
-					double[] af = new double[a.Length];
-					for(int i = 0; i < a.Length; i++){
-						double r;
-						if(!double.TryParse(a[i], out r)){
-							Console.WriteLine("The element number " + i + " is not in a correct format. Please enter again.");
-							Console.WriteLine();
-							goto start;
-						}
-						af[i] = r;
-					}
-					return new CampValue(af);
-				case AshLib.Type.Date:
-					string format = "HH:mm:ss dd/MM/yyyy";
-					DateTime dt;
-					if(!DateTime.TryParseExact(answer, format, CultureInfo.InvariantCulture, DateTimeStyles.None, out dt)){
-						Console.WriteLine("The date is not in a correct format. Please enter again.");
-						Console.WriteLine();
-						goto start;
-					}
-					Date da = (Date) dt;
-					return new CampValue(da);
-				default:
-					Console.WriteLine();
-					goto start;
+			if(answer.ToUpper() == "END"){
+				break;
 			}
+			
+			object o = null;
+			
+			while(!parseValue(answer, t, out o)){
+				write("Please enter the " + i + "th element of the " + getTypeName(t) + "array: ", paleRed);
+				answer = Console.ReadLine();
+				
+				if(answer.ToUpper() == "END"){
+					flag = false;
+					break;
+				}
+			}
+			
+			if(flag){
+				dynamic d = o;
+				list.Add(d);
+				i++;
+			}
+		}
+		
+		return list.ToArray();
+	}
+	
+	public static object askValue(AshFileType t){
+			write("Please enter the value of the " + getTypeName(t) + " camp: ", paleRed);
+			string answer = Console.ReadLine();
+			
+			object o = null;
+			
+			while(!parseValue(answer, t, out o)){
+				write("Please enter the value of the " + getTypeName(t) + " camp: ", paleRed);
+				answer = Console.ReadLine();
+			}
+			
+			return o;
+	}
+	
+	public static bool parseValue(string answer, AshFileType t, out object o){
+		switch(t){
+			case AshFileType.String:
+				o = answer;
+				return true;
+			case AshFileType.Byte:
+				byte d;
+				if(!byte.TryParse(answer, out d)){
+					writeLine("That number is in an invalid format. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				o = d;
+				return true;
+			case AshFileType.Ushort:
+				ushort e;
+				if(!ushort.TryParse(answer, out e)){
+					writeLine("That number is in an invalid format. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				o = e;
+				return true;
+			case AshFileType.Uint:
+				uint f;
+				if(!uint.TryParse(answer, out f)){
+					writeLine("That number is in an invalid format. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				o = f;
+				return true;
+			case AshFileType.Ulong:
+				ulong g;
+				if(!ulong.TryParse(answer, out g)){
+					writeLine("That number is in an invalid format. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				o = g;
+				return true;
+			case AshFileType.Sbyte:
+				sbyte h;
+				if(!sbyte.TryParse(answer, out h)){
+					writeLine("That number is in an invalid format. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				o = h;
+				return true;
+			case AshFileType.Short:
+				short j;
+				if(!short.TryParse(answer, out j)){
+					writeLine("That number is in an invalid format. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				o = j;
+				return true;
+			case AshFileType.Int:
+				int k;
+				if(!int.TryParse(answer, out k)){
+					writeLine("That number is in an invalid format. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				o = k;
+				return true;
+			case AshFileType.Long:
+				long l;
+				if(!long.TryParse(answer, out l)){
+					writeLine("That number is in an invalid format. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				o = l;
+				return true;
+			case AshFileType.Color3:
+				if(Color3.TryParse(answer, out Color3 ccc)){
+					o = ccc;
+					return true;
+				}
+				string[] a = answer.Split(",");
+				if(a.Length != 3){
+					writeLine("There is not the correct amount of arguments. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				byte r1, r2, r3;
+				if(!byte.TryParse(a[0], out r1)){
+					writeLine("The first number is in an invalid format. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				if(!byte.TryParse(a[1], out r2)){
+					writeLine("The second number is in an invalid format. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				if(!byte.TryParse(a[2], out r3)){
+					writeLine("The third number is in an invalid format. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				o = new Color3(r1, r2, r3);
+				return true;
+			case AshFileType.Float:
+				float m;
+				if(!float.TryParse(answer, out m)){
+					writeLine("That number is in an invalid format. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				o = m;
+				return true;
+			case AshFileType.Double:
+				double n;
+				if(!double.TryParse(answer, out n)){
+					writeLine("That number is in an invalid format. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				o = n;
+				return true;
+			case AshFileType.Vec2:
+				a = answer.Split(",");
+				if(a.Length != 2){
+					writeLine("There is not the correct amount of arguments. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				float s1, s2, s3, s4;
+				if(!float.TryParse(a[0], out s1)){
+					writeLine("The first number is in an invalid format. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				if(!float.TryParse(a[1], out s2)){
+					writeLine("The second number is in an invalid format. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				o = new Vec2(s1, s2);
+				return true;
+			case AshFileType.Vec3:
+				a = answer.Split(",");
+				if(a.Length != 3){
+					writeLine("There is not the correct amount of arguments. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				if(!float.TryParse(a[0], out s1)){
+					writeLine("The first number is in an invalid format. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				if(!float.TryParse(a[1], out s2)){
+					writeLine("The second number is in an invalid format. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				if(!float.TryParse(a[2], out s3)){
+					writeLine("The second number is in an invalid format. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				o = new Vec3(s1, s2, s3);
+				return true;
+			case AshFileType.Vec4:
+				a = answer.Split(",");
+				if(a.Length != 4){
+					writeLine("There is not the correct amount of arguments. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				if(!float.TryParse(a[0], out s1)){
+					writeLine("The first number is in an invalid format. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				if(!float.TryParse(a[1], out s2)){
+					writeLine("The second number is in an invalid format. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				if(!float.TryParse(a[2], out s3)){
+					writeLine("The third number is in an invalid format. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				if(!float.TryParse(a[3], out s4)){
+					writeLine("The forth number is in an invalid format. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				o = new Vec4(s1, s2, s3, s4);
+				return true;
+			case AshFileType.Bool:
+				answer = answer.ToLower();
+				if(answer == "true" || answer == "t"){
+					o = true;
+					return true;
+				} else if(answer == "false" || answer == "f"){
+					o = false;
+					return true;
+				}
+				writeLine("That boolean value is in an invalid format. Please enter true/false value.", error);
+				writeLine();
+				o = null;
+				return false;
+			case AshFileType.Date:
+				string format = "HH:mm:ss dd/MM/yyyy";
+				DateTime dt;
+				if(!DateTime.TryParseExact(answer, format, CultureInfo.InvariantCulture, DateTimeStyles.None, out dt)){
+					writeLine("The date is not in a correct format. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				o = (Date) dt;
+				return true;
+			default:
+				writeLine();
+				o = null;
+				return false;
 		}
 	}
 	
 	public static string askName(){
-		Console.Write("Please enter the name of the camp: ");
+		write("Please enter the name of the camp: ", red);
 		string answer = Console.ReadLine();
 		return answer;
 	}
 	
 	public static string askOldName(){
-		Console.Write("Please enter the old name of the camp to rename: ");
+		write("Please enter the old name of the camp to rename: ", red);
 		string answer = Console.ReadLine();
 		return answer;
 	}
 	
 	public static string askNewName(){
-		Console.Write("Please enter the new updated name of the camp: ");
+		write("Please enter the new updated name of the camp: ", red);
 		string answer = Console.ReadLine();
 		return answer;
 	}
 	
-	public static AshLib.Type askType(){
+	public static AshFileType askType(out bool array){
 		while(true){
-			Console.Write("Please enter the type (type help for a list of valid types): ");
+			write("Please enter the type (type help for a list of valid types): ", paleRed);
 			string answer = Console.ReadLine();
 			if(answer == "help" || answer == "typehelp" || answer == "typelist"){
 				typeHelp();
-				Console.WriteLine();
+				writeLine();
 				continue;
 			}
 			if(answer == "file"){
 				isFile = true;
-				return AshLib.Type.String;
+				array = false;
+				return AshFileType.String;
 			}
-			AshLib.Type t = getTypeFromString(answer);
-			if(t != AshLib.Type.Invalid){
+			AshFileType t = getTypeFromString(answer, out array);
+			if(t != AshFileType.Default){
 				return t;
 			}
-			Console.WriteLine("That is not a valid type. Please enter a valid type.");
-			Console.WriteLine();
+			writeLine("That is not a valid type. Please enter a valid type.", error);
+			writeLine();
 		}
 	}
 	
-	public static AshLib.Type getTypeFromString(string s){
-		s = s.ToLower();
-		if(byte.TryParse(s, out byte t) && t > -1 && t < 28){
-			return (AshLib.Type) t;
+	public static AshFileType getTypeFromString(string s, out bool array){
+		s = s.ToLower().Trim();
+		if(s.EndsWith("[]")){
+			array = true;
+			s = s.Substring(0, s.Length - 2);
+		}else{
+			array = false;
 		}
+		
+		if(byte.TryParse(s, out byte t) && t > 0 && t < 18){
+			return (AshFileType) t;
+		}
+		
 		switch(s){
-			case "bytearray":
-				return AshLib.Type.ByteArray;
 			case "text":
 			case "string":
-				return AshLib.Type.String;
+				return AshFileType.String;
 			case "byte":
-				return AshLib.Type.Byte;
+				return AshFileType.Byte;
 			case "ushort":
 			case "unsigned short":
-				return AshLib.Type.Ushort;
+				return AshFileType.Ushort;
 			case "uint":
 			case "unsigned int":
-				return AshLib.Type.Uint;
+				return AshFileType.Uint;
 			case "ulong":
 			case "unsigned long":
-				return AshLib.Type.Ulong;
+				return AshFileType.Ulong;
 			case "sbyte":
 			case "signed byte":
-				return AshLib.Type.Sbyte;
+				return AshFileType.Sbyte;
 			case "short":
-				return AshLib.Type.Short;
+				return AshFileType.Short;
 			case "number":
 			case "int":
-				return AshLib.Type.Int;
+				return AshFileType.Int;
 			case "long":
-				return AshLib.Type.Long;
+				return AshFileType.Long;
 			case "color":
 			case "color3":
 			case "colorrgb":
 			case "rgb":
-				return AshLib.Type.Color;
+				return AshFileType.Color3;
 			case "float":
-				return AshLib.Type.Float;
+				return AshFileType.Float;
 			case "double":
-				return AshLib.Type.Double;
+				return AshFileType.Double;
 			case "vec2":
-				return AshLib.Type.Vec2;
+				return AshFileType.Vec2;
 			case "vec3":
-				return AshLib.Type.Vec3;
+				return AshFileType.Vec3;
 			case "vec4":
-				return AshLib.Type.Vec4;
+				return AshFileType.Vec4;
 			case "bool":
 			case "boolean":
-				return AshLib.Type.Bool;
-			case "ubytearray":
-			case "ubyte array":
-				return AshLib.Type.UbyteArray;
-			case "ushortarray":
-			case "ushort array":
-				return AshLib.Type.UshortArray;
-			case "uintarray":
-			case "uint array":
-				return AshLib.Type.UintArray;
-			case "ulongarray":
-			case "ulong array":
-				return AshLib.Type.UlongArray;
-			case "sbytearray":
-			case "sbyte array":
-				return AshLib.Type.SbyteArray;
-			case "shortarray":
-			case "short array":
-				return AshLib.Type.ShortArray;
-			case "intarray":
-			case "int array":
-				return AshLib.Type.IntArray;
-			case "longarray":
-			case "long array":
-				return AshLib.Type.LongArray;
-			case "floatarray":
-			case "float array":
-				return AshLib.Type.FloatArray;
-			case "doublearray":
-			case "double array":
-				return AshLib.Type.DoubleArray;
+				return AshFileType.Bool;
 			case "date":
 			case "time":
-				return AshLib.Type.Date;
+				return AshFileType.Date;
 			default:
-				return AshLib.Type.Invalid;
+				return AshFileType.Default;
 		}
 	}
 	
-	public static string getTypeName(AshLib.Type t){
+	public static string getTypeName(AshFileType t){
 		switch (t){
-			case AshLib.Type.ByteArray:
-				return "Byte Array";
-			case AshLib.Type.String:
+			case AshFileType.String:
 				return "Text";
-			case AshLib.Type.Byte:
+			case AshFileType.Byte:
 				return "Byte";
-			case AshLib.Type.Ushort:
+			case AshFileType.Ushort:
 				return "Unsigned 2-byte number";
-			case AshLib.Type.Uint:
+			case AshFileType.Uint:
 				return "Unsigned 4-byte number";
-			case AshLib.Type.Ulong:
+			case AshFileType.Ulong:
 				return "Unsigned 8-byte number";
-			case AshLib.Type.Sbyte:
+			case AshFileType.Sbyte:
 				return "Signed byte";
-			case AshLib.Type.Short:
+			case AshFileType.Short:
 				return "Signed 2-byte number";
-			case AshLib.Type.Int:
+			case AshFileType.Int:
 				return "Integer number";
-			case AshLib.Type.Long:
+			case AshFileType.Long:
 				return "Signed 8-byte number";
-			case AshLib.Type.Color:
+			case AshFileType.Color3:
 				return "Color";
-			case AshLib.Type.Float:
+			case AshFileType.Float:
 				return "Floating point number";
-			case AshLib.Type.Double:
+			case AshFileType.Double:
 				return "Double precision number";
-			case AshLib.Type.Vec2:
+			case AshFileType.Vec2:
 				return "2D Vector";
-			case AshLib.Type.Vec3:
+			case AshFileType.Vec3:
 				return "3D Vector";
-			case AshLib.Type.Vec4:
+			case AshFileType.Vec4:
 				return "4D Vector";
-			case AshLib.Type.Bool:
+			case AshFileType.Bool:
 				return "Boolean";
-			case AshLib.Type.UbyteArray:
-				return "Unsigned Byte Array";
-			case AshLib.Type.UshortArray:
-				return "Unsigned 2-byte number array";
-			case AshLib.Type.UintArray:
-				return "Unsigned 4-byte number array";
-			case AshLib.Type.UlongArray:
-				return "Unsigned 8-byte number array";
-			case AshLib.Type.SbyteArray:
-				return "Signed byte array";
-			case AshLib.Type.ShortArray:
-				return "Signed 2-byte number array";
-			case AshLib.Type.IntArray:
-				return "Integer number array";
-			case AshLib.Type.LongArray:
-				return "Signed 8-byte number array";
-			case AshLib.Type.FloatArray:
-				return "Floating point number array";
-			case AshLib.Type.DoubleArray:
-				return "Double precision number array";
-			case AshLib.Type.Date:
+			case AshFileType.Date:
 				return "Date";
-			case AshLib.Type.Invalid:
+			case AshFileType.Default:
 			default:
 				return "Unknown Type: " + (int)t;
 		}
@@ -732,13 +750,13 @@ public class Editor{
 	
 	public static void reload(){
 		if(path == null){
-			Console.WriteLine("There is no path asociated with this file");
+			writeLine("There is no path asociated with this file", error);
 			return;
 		}
 		if(!loadFromPath()){
 			return;
 		}
-		Console.WriteLine(Path.GetFileName(path) + " reloaded succesfully.");
+		writeLine(Path.GetFileName(path) + " reloaded succesfully.", purple);
 		hasBeenSaved = true;
 	}
 	
@@ -754,8 +772,13 @@ public class Editor{
 			askPath();
 		}
 		saveToPath();
-		Console.WriteLine("File saved succesfully.");
+		writeLine("File saved succesfully.", purple);
 		hasBeenSaved = true;
+	}
+	
+	public static void export(){
+		writeLine("Here is the text: ", purple);
+		writeLine(af.ToString());
 	}
 	
 	public static void load(){
@@ -764,18 +787,31 @@ public class Editor{
 		if(!loadFromPath()){
 			return;
 		}
-		Console.WriteLine(Path.GetFileName(path) + " loaded succesfully.");
+		writeLine(Path.GetFileName(path) + " loaded succesfully.", purple);
 		hasBeenSaved = true;
 	}
 	
+	public static void import(){
+		askToSave();
+		write("Please enter the text: ", paleRed);
+		string answer = Console.ReadLine();
+		if(AshFile.TryParse(answer, out AshFile a)){
+			af = a;
+			writeLine("Text imported succesfully.", purple);
+			hasBeenSaved = true;
+		}else{
+			writeLine("Failed to parse the text.", error);
+		}
+	}
+	
 	public static string askFilePath(){
-		Console.Write("Please enter the path to the file: ");
+		write("Please enter the path to the file: ", paleRed);
 		string answer = Console.ReadLine();
 		return removeQuotes(answer);
 	}
 	
 	public static void askPath(){
-		Console.Write("Please enter the path: ");
+		write("Please enter the path: ", paleRed);
 		string answer = Console.ReadLine();
 		path = removeQuotes(answer);
 	}
@@ -783,7 +819,7 @@ public class Editor{
 	public static void askToSave(){
 		if(!hasBeenSaved){
 			while(true){
-				Console.Write("The current file has not been saved. Do you want to save? (Y/N): ");
+				write("The current file has not been saved. Do you want to save? (Y/N): ", paleRed);
 				string answer = Console.ReadLine();
 				answer = answer.ToLower();
 				
@@ -796,8 +832,8 @@ public class Editor{
 					case "no":
 						return;
 					default:
-						Console.WriteLine("Invalid answer. Please answer Y/N.");
-						Console.WriteLine();
+						writeLine("Invalid answer. Please answer Y/N.", error);
+						writeLine();
 						continue;
 				}
 			}
@@ -814,7 +850,7 @@ public class Editor{
 		try{
 			if(!File.Exists(path)){
 				path = null;
-				Console.WriteLine("Could not load from path becaue the file doesnt exist.");
+				writeLine("Could not load from path becaue the file doesnt exist.", error);
 				return false;
 			}
 			af.Load(path);
@@ -823,9 +859,9 @@ public class Editor{
 			
 			return true;
 		} catch(Exception e){
-			Console.WriteLine("An error occured trying to open the file. Here is more info:");
-			Console.WriteLine("Message: " + e.Message);
-			Console.WriteLine("Stack Trace: " + e.StackTrace);
+			writeLine("An error occured trying to open the file. Here is more info:", error);
+			writeLine("Message: " + e.Message);
+			writeLine("Stack Trace: " + e.StackTrace);
 			
 			return false;
 		}
@@ -833,7 +869,11 @@ public class Editor{
 	
 	
 	public static void see(){
-		Console.WriteLine(af.AsString());
+		if(dep.config.GetCamp<bool>("visualizeAsTree")){
+			writeLine(af.VisualizeAsTree());
+		}else{
+			writeLine(af.Visualize());
+		}
 	}
 	
 	public static string removeQuotes(string p){
@@ -852,91 +892,152 @@ public class Editor{
 	
 	public static void handleAshFileErrors(){
 		if(AshFile.GetErrorCount() > 0){
-			Console.WriteLine("Errors occured while reading or saving the file, here is more info:");
-			Console.WriteLine("Error count: " + AshFile.GetErrorCount());
-			Console.WriteLine("Error log: " + AshFile.GetErrorLog());
+			writeLine("Errors occured while reading or saving the file, here is more info:", error);
+			writeLine("Error count: " + AshFile.GetErrorCount());
+			writeLine("Error log: " + AshFile.GetErrorLog());
 		}
 		AshFile.EmptyErrors();
 	}
 	
 	public static void printHelp(){
-		Console.WriteLine("The list of commands is:");
-		Console.WriteLine();
-		Console.WriteLine("\"help\" for getting help.");
-		Console.WriteLine("\"typelist\" for getting a list of valid types.");
-		Console.WriteLine("\"tutorial\" for getting a tutorial on how AshFiles work.");
-		Console.WriteLine("\"info\" for getting information about the Editor (version, author...)");
-		Console.WriteLine("\"load\" for loading a file.");
-		Console.WriteLine("\"save\" for saving the file.");
-		Console.WriteLine("\"new\" for creating a new blank file.");
-		Console.WriteLine("\"reload\" for reloading the file from where it was loaded/saved.");
-		Console.WriteLine("\"see\" for seeing the whole file. The camp names will display first, and then the values");
-		Console.WriteLine("\"set\" for setting the value of a camp.");
-		Console.WriteLine("\"get\" for getting and seeing in detail the value of a camp.");
-		Console.WriteLine("\"delete\" for deleting a camp.");
-		Console.WriteLine("\"rename\" for renaming a camp.");
-		Console.WriteLine("\"exit\" for exiting the application");
+		writeLine("The list of commands is:", purple);
+		writeLine();
+		writeLine("'help' for getting help.");
+		writeLine("'typelist' for getting a list of valid types.");
+		writeLine("'tutorial' for getting a tutorial on how AshFiles work.");
+		writeLine("'info' for getting information about the Editor (version, author...)");
+		writeLine("'load' for loading a file.");
+		writeLine("'save' for saving the file.");
+		writeLine("'import' for importing the file as text.");
+		writeLine("'export' for exporting the file as text.");
+		writeLine("'new' for creating a new blank file.");
+		writeLine("'reload' for reloading the file from where it was loaded/saved.");
+		writeLine("'see' for seeing the whole file. The camp names will display first, and then the values");
+		writeLine("'set' for setting the value of a camp.");
+		writeLine("'get' for getting and seeing in detail the value of a camp.");
+		writeLine("'delete' for deleting a camp.");
+		writeLine("'rename' for renaming a camp.");
+		writeLine("'config' for opening the application configuration as an AshFile.");
+		writeLine("'exit' for exiting the application");
 	}
 	
 	public static void typeHelp(){
-		Console.WriteLine("The list of valid types is:");
-		Console.WriteLine();
-		Console.WriteLine("\"text\" for strings of text.");
-		Console.WriteLine("\"number\" for natural positive numbers.");
-		Console.WriteLine("\"bool\" for true/false values.");
-		Console.WriteLine("\"float\" for 32-bit floating-point numbers (numbers with decimals).");
-		Console.WriteLine("\"color\" for RGB color values.");
-		Console.WriteLine("\"file\" for copying the contents of a file(as text) based on its path.");
-		Console.WriteLine("\"date\" for date/time values.");
-		Console.WriteLine("\"vec2\" for 2D vectors.");
-		Console.WriteLine("\"vec3\" for 3D vectors.");
-		Console.WriteLine("\"vec4\" for 4D vectors.");
-		Console.WriteLine();
-		Console.WriteLine("\"byte\" for 8-bit signed integers.");
-		Console.WriteLine("\"sbyte\" for 8-bit signed integers.");
-		Console.WriteLine("\"short\" for 16-bit signed integers.");
-		Console.WriteLine("\"ushort\" for 16-bit unsigned integers.");
-		Console.WriteLine("\"int\" for 32-bit signed integers.");
-		Console.WriteLine("\"uint\" for 32-bit unsigned integers.");
-		Console.WriteLine("\"long\" for 64-bit signed integers.");
-		Console.WriteLine("\"ulong\" for 64-bit unsigned integers.");
-		Console.WriteLine("\"double\" for 64-bit floating-point numbers (numbers with decimals).");
-		Console.WriteLine();
-		Console.WriteLine("\"bytearray\" for arrays of bytes.");
-		Console.WriteLine("\"ubytearray\" for arrays of unsigned bytes.");
-		Console.WriteLine("\"shortarray\" for arrays of signed shorts.");
-		Console.WriteLine("\"ushortarray\" for arrays of unsigned shorts.");
-		Console.WriteLine("\"intarray\" for arrays of signed integers.");
-		Console.WriteLine("\"uintarray\" for arrays of unsigned integers.");
-		Console.WriteLine("\"longarray\" for arrays of signed longs.");
-		Console.WriteLine("\"ulongarray\" for arrays of unsigned longs.");
-		Console.WriteLine("\"floatarray\" for arrays of floating-point numbers.");
-		Console.WriteLine("\"doublearray\" for arrays of double-precision floating-point numbers.");
-		Console.WriteLine();
-		Console.WriteLine("Note: Type names are case-insensitive.");
+		writeLine("The list of valid types is:", purple);
+		writeLine();
+		writeLine("'text' for strings of text.");
+		writeLine("'number' for natural positive numbers.");
+		writeLine("'bool' for true/false values.");
+		writeLine("'float' for 32-bit floating-point numbers (numbers with decimals).");
+		writeLine("'color' for RGB color values.");
+		writeLine("'file' for copying the contents of a file(as text) based on its path.");
+		writeLine("'date' for date/time values.");
+		writeLine("'vec2' for 2D vectors.");
+		writeLine("'vec3' for 3D vectors.");
+		writeLine("'vec4' for 4D vectors.");
+		writeLine();
+		writeLine("'byte' for 8-bit signed integers.");
+		writeLine("'sbyte' for 8-bit signed integers.");
+		writeLine("'short' for 16-bit signed integers.");
+		writeLine("'ushort' for 16-bit unsigned integers.");
+		writeLine("'int' for 32-bit signed integers.");
+		writeLine("'uint' for 32-bit unsigned integers.");
+		writeLine("'long' for 64-bit signed integers.");
+		writeLine("'ulong' for 64-bit unsigned integers.");
+		writeLine("'double' for 64-bit floating-point numbers (numbers with decimals).");
+		writeLine();
+		writeLine("Note: Type names are case-insensitive.");
+		writeLine();
+		writeLine("You can add '[]' to the end of the type name to make an array", purple);
 	}
 
 	
 	public static void tutorial(){
-		Console.WriteLine();
-		Console.WriteLine("An AshFile is a file format that has .ash extension, but it also represents a structure of data.");
-		Console.WriteLine("This structure is based in multiple pockets of information. This pockets are called camps.");
-		Console.WriteLine("Each camp has a name and a value. This value can be many things. (Type typelist for a full list)");
-		Console.WriteLine("For example, you could have a camp named \"debt\", with its value being a number and being 12000.");
-		Console.WriteLine("This structure can be used in programming projects wwith the AshLib nuget package.");
-		Console.WriteLine("This Editor is just a way to make it possible to edit AshFiles without having to code.");
+		writeLine();
+		writeLine("An AshFile is a file format that has .ash extension, but it also represents a structure of data.");
+		writeLine("This structure is based in multiple pockets of information. This pockets are called camps.");
+		writeLine("Each camp has a name and a value. This value can be many things. (Type typelist for a full list)");
+		writeLine("For example, you could have a camp named 'debt', with its value being a number and being 12000.");
+		writeLine("This structure can be used in programming projects wwith the AshLib nuget package.");
+		writeLine("This Editor is just a way to make it possible to edit AshFiles without having to code.");
 	}
 	
 	public static void info(){
-		Console.WriteLine("The current version of AshFile Editor is v2.0.2");
-		Console.WriteLine("This version is prepared to support v2 AshFiles");
-		Console.WriteLine();
-		Console.WriteLine("It was made by Siljam for the AshProject");
+		writeLine("The current version of AshFile Editor is v3.0.0", purple);
+		writeLine("This version is prepared to support v3 AshFiles", purple);
+		writeLine();
+		writeLine("It was made by Siljam for the AshProject", red);
 	}
 	
 	public static void exit(){
 		askToSave();
-		Console.WriteLine("Bye bye honey pie!");
+		writeLine("Bye bye honey pie!", purple);
 		Environment.Exit(0);
+	}
+	
+	public static void loadConfig(){
+		writeLine("The config is an AshFile, so it will be loaded. When you finish, save it and restart the application.", purple);
+		askToSave();
+		path = dep.path + "/config.ash";
+		loadFromPath();
+	}
+	
+	public static void writeLine(){
+		Console.WriteLine();
+	}
+	
+	public static void writeLine(string s){
+		Console.WriteLine(s);
+	}
+	
+	public static void writeLine(object s){
+		Console.WriteLine(s);
+	}
+	
+	public static void writeLine(string s, Color3 c){
+		if(!dep.config.GetCamp<bool>("useColors")){
+			write(s);
+			return;
+		}
+		FormatString fs = new FormatString();
+		fs.Append(s, new CharFormat(c, false));
+		Console.WriteLine(fs);
+	}
+	
+	public static void writeLine(object s, Color3 c){
+		if(!dep.config.GetCamp<bool>("useColors")){
+			write(s);
+			return;
+		}
+		FormatString fs = new FormatString();
+		fs.Append(s.ToString(), new CharFormat(c, false));
+		Console.WriteLine(fs);
+	}
+	
+	public static void write(string s){
+		Console.Write(s);
+	}
+	
+	public static void write(object s){
+		Console.Write(s);
+	}
+	
+	public static void write(string s, Color3 c){
+		if(!dep.config.GetCamp<bool>("useColors")){
+			write(s);
+			return;
+		}
+		FormatString fs = new FormatString();
+		fs.Append(s, new CharFormat(c, false));
+		Console.Write(fs);
+	}
+	
+	public static void write(object s, Color3 c){
+		if(!dep.config.GetCamp<bool>("useColors")){
+			write(s);
+			return;
+		}
+		FormatString fs = new FormatString();
+		fs.Append(s.ToString(), new CharFormat(c, false));
+		Console.Write(fs);
 	}
 }

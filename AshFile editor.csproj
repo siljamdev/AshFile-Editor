@@ -7,17 +7,21 @@
     <ImplicitUsings>enable</ImplicitUsings>
 	<Nullable>enable</Nullable>
 	
-	<Version>2.0.2</Version>
+	<Version>3.0.0</Version>
     <Authors>siljam</Authors> 
     <Company>AshProject</Company>
 	<PackageDescription>Simple editor for AshFiles</PackageDescription>
 	<RepositoryUrl>https://github.com/siljamdev/AshFile-Editor</RepositoryUrl>
 	
-	<ApplicationIcon>ashfile.ico</ApplicationIcon>
+	<ApplicationIcon>res/ashfile.ico</ApplicationIcon>
+  </PropertyGroup>
+  
+  <PropertyGroup Condition=" '$(OS)' == 'Windows_NT' ">
+    <DefineConstants>WINDOWS</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="AshLib" Version="2.1.0" />
+    <PackageReference Include="AshLib" Version="3.2.1" />
   </ItemGroup>
 
 </Project>
