@@ -27,10 +27,6 @@ public class Editor{
 		
 		initializeConfig();
 		
-		#if WINDOWS
-			prepareConsole();
-		#endif
-		
 		hasBeenSaved = true;
 		af = new AshFile();
 		if(args.Length > 0){
@@ -630,6 +626,7 @@ public class Editor{
 		
 		switch(s){
 			case "text":
+			case "s":
 			case "string":
 				return AshFileType.String;
 			case "byte":
@@ -649,27 +646,35 @@ public class Editor{
 			case "short":
 				return AshFileType.Short;
 			case "number":
+			case "num":
+			case "n":
 			case "int":
 				return AshFileType.Int;
 			case "long":
 				return AshFileType.Long;
 			case "color":
 			case "color3":
+			case "c":
 			case "colorrgb":
 			case "rgb":
 				return AshFileType.Color3;
 			case "float":
+			case "f":
 				return AshFileType.Float;
 			case "double":
 				return AshFileType.Double;
 			case "vec2":
+			case "v2":
 				return AshFileType.Vec2;
 			case "vec3":
+			case "v3":
 				return AshFileType.Vec3;
 			case "vec4":
+			case "v4":
 				return AshFileType.Vec4;
 			case "bool":
 			case "boolean":
+			case "b":
 				return AshFileType.Bool;
 			case "date":
 			case "time":
@@ -844,9 +849,17 @@ public class Editor{
 	
 	public static void see(){
 		if(dep.config.GetCamp<bool>("visualizeAsTree")){
-			writeLine(af.VisualizeAsTree());
+			if(!dep.config.GetCamp<bool>("useColors")){
+				writeLine(af.VisualizeAsTree());
+			}else{
+				writeLine(af.VisualizeAsFormattedTree(CharFormat.ResetAll, new CharFormat(purple), CharFormat.ResetAll));
+			}
 		}else{
-			writeLine(af.Visualize());
+			if(!dep.config.GetCamp<bool>("useColors")){
+				writeLine(af.Visualize());
+			}else{
+				writeLine(af.VisualizeFormatted(new CharFormat(purple), CharFormat.ResetAll));
+			}
 		}
 	}
 	
@@ -876,50 +889,158 @@ public class Editor{
 	public static void printHelp(){
 		writeLine("The list of commands is:", purple);
 		writeLine();
-		writeLine("'help' for getting help.");
-		writeLine("'typelist' for getting a list of valid types.");
-		writeLine("'tutorial' for getting a tutorial on how AshFiles work.");
-		writeLine("'info' for getting information about the Editor (version, author...)");
-		writeLine("'load' for loading a file.");
-		writeLine("'save' for saving the file.");
-		writeLine("'import' for importing the file as text.");
-		writeLine("'export' for exporting the file as text.");
-		writeLine("'new' for creating a new blank file.");
-		writeLine("'reload' for reloading the file from where it was loaded/saved.");
-		writeLine("'see' for seeing the whole file. The camp names will display first, and then the values");
-		writeLine("'set' for setting the value of a camp.");
-		writeLine("'get' for getting and seeing in detail the value of a camp.");
-		writeLine("'delete' for deleting a camp.");
-		writeLine("'rename' for renaming a camp.");
-		writeLine("'config' for opening the application configuration as an AshFile.");
-		writeLine("'exit' for exiting the application");
+		write("'");
+		write("help", paleRed);
+		writeLine("' for getting help.");
+		
+		write("'");
+		write("typelist", paleRed);
+		writeLine("' for getting a list of valid types.");
+		
+		write("'");
+		write("tutorial", paleRed);
+		writeLine("' for getting a tutorial on how AshFiles work.");
+		
+		write("'");
+		write("info", paleRed);
+		writeLine("' for getting information about the Editor (version, author...)");
+		
+		write("'");
+		write("load", paleRed);
+		writeLine("' for loading a file.");
+		
+		write("'");
+		write("save", paleRed);
+		writeLine("' for saving the file.");
+		
+		write("'");
+		write("import", paleRed);
+		writeLine("' for importing the file as text.");
+		
+		write("'");
+		write("export", paleRed);
+		writeLine("' for exporting the file as text.");
+		
+		write("'");
+		write("new", paleRed);
+		writeLine("' for creating a new blank file.");
+		
+		write("'");
+		write("reload", paleRed);
+		writeLine("' for reloading the file from where it was loaded/saved.");
+		
+		write("'");
+		write("see", paleRed);
+		writeLine("' for seeing the whole file. The camp names will display first, and then the values");
+		
+		write("'");
+		write("set", paleRed);
+		writeLine("' for setting the value of a camp.");
+		
+		write("'");
+		write("get", paleRed);
+		writeLine("' for getting and seeing in detail the value of a camp.");
+		
+		write("'");
+		write("delete", paleRed);
+		writeLine("' for deleting a camp.");
+		
+		write("'");
+		write("rename", paleRed);
+		writeLine("' for renaming a camp.");
+		
+		write("'");
+		write("config", paleRed);
+		writeLine("' for opening the application configuration as an AshFile.");
+		
+		write("'");
+		write("exit", paleRed);
+		writeLine("' for exiting the application.");
 	}
 	
 	public static void typeHelp(){
 		writeLine("The list of valid types is:", purple);
 		writeLine();
-		writeLine("'text' for strings of text.");
-		writeLine("'number' for natural positive numbers.");
-		writeLine("'bool' for true/false values.");
-		writeLine("'float' for 32-bit floating-point numbers (numbers with decimals).");
-		writeLine("'color' for RGB color values.");
-		writeLine("'file' for copying the contents of a file(as text) based on its path.");
-		writeLine("'date' for date/time values.");
-		writeLine("'vec2' for 2D vectors.");
-		writeLine("'vec3' for 3D vectors.");
-		writeLine("'vec4' for 4D vectors.");
+		
+		write("'");
+		write("text", paleRed);
+		writeLine("' for strings of text.");
+		
+		write("'");
+		write("number", paleRed);
+		writeLine("' for natural positive numbers.");
+		
+		write("'");
+		write("bool", paleRed);
+		writeLine("' for true/false values.");
+		
+		write("'");
+		write("float", paleRed);
+		writeLine("' for 32-bit floating-point numbers (numbers with decimals).");
+		
+		write("'");
+		write("color", paleRed);
+		writeLine("' for RGB color values.");
+		
+		write("'");
+		write("file", paleRed);
+		writeLine("' for copying the contents of a file(as text) based on its path.");
+		
+		write("'");
+		write("date", paleRed);
+		writeLine("' for date/time values.");
+		
+		write("'");
+		write("vec2", paleRed);
+		writeLine("' for 2D vectors.");
+		
+		write("'");
+		write("vec3", paleRed);
+		writeLine("' for 3D vectors.");
+		
+		write("'");
+		write("vec4", paleRed);
+		writeLine("' for 4D vectors.");
 		writeLine();
-		writeLine("'byte' for 8-bit signed integers.");
-		writeLine("'sbyte' for 8-bit signed integers.");
-		writeLine("'short' for 16-bit signed integers.");
-		writeLine("'ushort' for 16-bit unsigned integers.");
-		writeLine("'int' for 32-bit signed integers.");
-		writeLine("'uint' for 32-bit unsigned integers.");
-		writeLine("'long' for 64-bit signed integers.");
-		writeLine("'ulong' for 64-bit unsigned integers.");
-		writeLine("'double' for 64-bit floating-point numbers (numbers with decimals).");
+		
+		write("'");
+		write("byte", paleRed);
+		writeLine("' for 8-bit signed integers.");
+		
+		write("'");
+		write("sbyte", paleRed);
+		writeLine("' for 8-bit signed integers.");
+		
+		write("'");
+		write("short", paleRed);
+		writeLine("' for 16-bit signed integers.");
+		
+		write("'");
+		write("ushort", paleRed);
+		writeLine("' for 16-bit unsigned integers.");
+		
+		write("'");
+		write("int", paleRed);
+		writeLine("' for 32-bit signed integers.");
+		
+		write("'");
+		write("uint", paleRed);
+		writeLine("' for 32-bit unsigned integers.");
+		
+		write("'");
+		write("long", paleRed);
+		writeLine("' for 64-bit signed integers.");
+		
+		write("'");
+		write("ulong", paleRed);
+		writeLine("' for 64-bit unsigned integers.");
+		
+		write("'");
+		write("double", paleRed);
+		writeLine("' for 64-bit floating-point numbers (numbers with decimals).");
+		
 		writeLine();
-		writeLine("Note: Type names are case-insensitive.");
+		writeLine("Note: Type names are case-insensitive.", purple);
 		writeLine();
 		writeLine("You can add '[]' to the end of the type name to make an array", purple);
 	}
@@ -936,7 +1057,7 @@ public class Editor{
 	}
 	
 	public static void info(){
-		writeLine("The current version of AshFile Editor is v3.0.1", purple);
+		writeLine("The current version of AshFile Editor is v3.1.0", purple);
 		writeLine("This version is prepared to support v3 AshFiles", purple);
 		writeLine();
 		writeLine("It was made by Siljam for the AshProject", red);
@@ -973,7 +1094,7 @@ public class Editor{
 			return;
 		}
 		FormatString fs = new FormatString();
-		fs.Append(s, new CharFormat(c, false));
+		fs.Append(s, new CharFormat(c));
 		Console.WriteLine(fs);
 	}
 	
@@ -983,7 +1104,7 @@ public class Editor{
 			return;
 		}
 		FormatString fs = new FormatString();
-		fs.Append(s.ToString(), new CharFormat(c, false));
+		fs.Append(s.ToString(), new CharFormat(c));
 		Console.WriteLine(fs);
 	}
 	
@@ -1001,7 +1122,7 @@ public class Editor{
 			return;
 		}
 		FormatString fs = new FormatString();
-		fs.Append(s, new CharFormat(c, false));
+		fs.Append(s, new CharFormat(c));
 		Console.Write(fs);
 	}
 	
@@ -1011,7 +1132,7 @@ public class Editor{
 			return;
 		}
 		FormatString fs = new FormatString();
-		fs.Append(s.ToString(), new CharFormat(c, false));
+		fs.Append(s.ToString(), new CharFormat(c));
 		Console.Write(fs);
 	}
 }
