@@ -14,6 +14,9 @@
 	<RepositoryUrl>https://github.com/siljamdev/AshFile-Editor</RepositoryUrl>
 	
 	<ApplicationIcon>res/icon.ico</ApplicationIcon>
+	
+	<PublishSingleFile>true</PublishSingleFile>
+	<SelfContained>true</SelfContained>
   </PropertyGroup>
 
   <ItemGroup>
