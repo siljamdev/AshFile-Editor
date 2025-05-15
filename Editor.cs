@@ -66,6 +66,7 @@ public class Editor{
 				case "info":
 					info();
 					break;
+				case "open":
 				case "load":
 					load();
 					break;
@@ -107,6 +108,16 @@ public class Editor{
 				case "rename":
 				case "renamecamp":
 					renameCamp();
+					break;
+				case "tostring":
+				case "tostr":
+					toString();
+					break;
+				case "tojson":
+					toJson();
+					break;
+				case "parse":
+					parse();
 					break;
 				case "exit":
 				case "x":
@@ -863,6 +874,31 @@ public class Editor{
 		}
 	}
 	
+	public static void toString(){
+		writeLine(af.ToStringCompact());
+	}
+	
+	public static void toJson(){
+		writeLine(af.ToJson());
+	}
+	
+	public static void parse(){
+		askToSave();
+		write("Please enter the AshFile string format: ", paleRed);
+		string answer = Console.ReadLine();
+		
+		if(!AshFile.TryParse(answer, out AshFile a)){
+			handleAshFileParseErrors();
+			return;
+		}
+		
+		af = a;
+		path = null;
+		
+		writeLine("Parsed succesfully.", purple);
+		hasBeenSaved = false;
+	}
+	
 	public static string removeQuotes(string p){
 		if(p.Length < 1){
 			return p;
@@ -880,6 +916,15 @@ public class Editor{
 	public static void handleAshFileErrors(){
 		if(AshFile.GetErrorCount() > 0){
 			writeLine("Errors occured while reading or saving the file, here is more info:", error);
+			writeLine("Error count: " + AshFile.GetErrorCount());
+			writeLine("Error log: " + AshFile.GetErrorLog());
+		}
+		AshFile.EmptyErrors();
+	}
+	
+	public static void handleAshFileParseErrors(){
+		if(AshFile.GetErrorCount() > 0){
+			writeLine("Errors occured while parsing, here is more info:", error);
 			writeLine("Error count: " + AshFile.GetErrorCount());
 			writeLine("Error log: " + AshFile.GetErrorLog());
 		}
@@ -948,6 +993,18 @@ public class Editor{
 		write("'");
 		write("rename", paleRed);
 		writeLine("' for renaming a camp.");
+		
+		write("'");
+		write("tojson", paleRed);
+		writeLine("' for getting the AshFile as a JSON.");
+		
+		write("'");
+		write("tostr", paleRed);
+		writeLine("' for getting the AshFile string format representation of the file.");
+		
+		write("'");
+		write("parse", paleRed);
+		writeLine("' for getting an AshFile from its string format representation.");
 		
 		write("'");
 		write("config", paleRed);
@@ -1057,7 +1114,7 @@ public class Editor{
 	}
 	
 	public static void info(){
-		writeLine("The current version of AshFile Editor is v3.1.0", purple);
+		writeLine("The current version of AshFile Editor is v3.1.1", purple);
 		writeLine("This version is prepared to support v3 AshFiles", purple);
 		writeLine();
 		writeLine("It was made by Siljam for the AshProject", red);
