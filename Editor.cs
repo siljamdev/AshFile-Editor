@@ -27,6 +27,11 @@ public class Editor{
 		
 		initializeConfig();
 		
+		//Fix unicode chars not appearing
+		try{
+			Console.OutputEncoding = System.Text.Encoding.UTF8;
+		}catch(Exception){}
+		
 		hasBeenSaved = true;
 		af = new AshFile();
 		if(args.Length > 0){
@@ -149,10 +154,10 @@ public class Editor{
 		
 		dep.config.Save();
 		
-		purple = dep.config.GetCamp<Color3>("successColor");
-		red = dep.config.GetCamp<Color3>("questionColor");
-		paleRed = dep.config.GetCamp<Color3>("questionColor2");
-		error = dep.config.GetCamp<Color3>("errorColor");
+		purple = dep.config.GetValue<Color3>("successColor");
+		red = dep.config.GetValue<Color3>("questionColor");
+		paleRed = dep.config.GetValue<Color3>("questionColor2");
+		error = dep.config.GetValue<Color3>("errorColor");
 	}
 	
 	public static void setCamp(){
@@ -165,7 +170,7 @@ public class Editor{
 				isFile = false;
 				return;
 			}
-			af.SetCamp(name, File.ReadAllText(p));
+			af.Set(name, File.ReadAllText(p));
 			hasBeenSaved = false;
 			isFile = false;
 			return;
@@ -176,14 +181,14 @@ public class Editor{
 		}else{
 			o = askValue(t);
 		}
-		af.SetCamp(name, o);
+		af.Set(name, o);
 		hasBeenSaved = false;
 	}
 	
 	public static void getCamp(){
 		string name = askName();
 		object o;
-		if(!af.CanGetCamp(name, out o)){
+		if(!af.TryGetValue(name, out o)){
 			writeLine("There is no camp named '" + name + "'.", error);
 			return;
 		}
@@ -193,13 +198,13 @@ public class Editor{
 			bool f = true;
 			foreach(var j in (Array) o){
 				if(!f){
-					sb.Append(",");
+					sb.Append(", ");
 				}
 				f = false;
 				
 				sb.Append(j.ToString());
-				writeLine("Camp name: " + name + " | Type: " + getTypeName(t) + " Array | Values: [" + sb.ToString() + "]");
 			}
+			writeLine("Camp name: " + name + " | Type: " + getTypeName(t) + " Array | Values: [" + sb.ToString() + "]");
 		}else{
 			AshFileType t = getFileTypeFromType(o.GetType());
 			writeLine("Camp name: " + name + " | Type: " + getTypeName(t) + " | Value: " + o.ToString());
@@ -210,8 +215,8 @@ public class Editor{
 	
 	public static void deleteCamp(){
 		string name = askName();
-		if(!af.CanDeleteCamp(name)){
-			writeLine("There is no camp named \"" + name + "\".");
+		if(!af.Remove(name)){
+			writeLine("There is no camp named '" + name + "'.");
 			return;
 		}
 		hasBeenSaved = false;
@@ -219,12 +224,12 @@ public class Editor{
 	
 	public static void renameCamp(){
 		string oldName = askOldName();
-		if(!af.ExistsCamp(oldName)){
-			writeLine("There is no camp named \"" + oldName + "\".", error);
+		if(!af.ContainsKey(oldName)){
+			writeLine("There is no camp named '" + oldName + "'.", error);
 			return;
 		}
 		string newName = askNewName();
-		af.RenameCamp(oldName, newName);
+		af.Rename(oldName, newName);
 		hasBeenSaved = false;
 	}
 	
@@ -284,7 +289,7 @@ public class Editor{
 		bool flag = true;
 		
 		while(flag){
-			write("Please enter the " + i + "th element of the " + getTypeName(t) + "array: ", paleRed);
+			write("Please enter the " + i + "th element of the " + getTypeName(t) + " array: ", paleRed);
 			string answer = Console.ReadLine();
 			
 			if(answer.ToUpper() == "END"){
@@ -294,7 +299,7 @@ public class Editor{
 			object o = null;
 			
 			while(!parseValue(answer, t, out o)){
-				write("Please enter the " + i + "th element of the " + getTypeName(t) + "array: ", paleRed);
+				write("Please enter the " + i + "th element of the " + getTypeName(t) + " array: ", paleRed);
 				answer = Console.ReadLine();
 				
 				if(answer.ToUpper() == "END"){
@@ -859,14 +864,14 @@ public class Editor{
 	
 	
 	public static void see(){
-		if(dep.config.GetCamp<bool>("visualizeAsTree")){
-			if(!dep.config.GetCamp<bool>("useColors")){
+		if(dep.config.GetValue<bool>("visualizeAsTree")){
+			if(!dep.config.GetValue<bool>("useColors")){
 				writeLine(af.VisualizeAsTree());
 			}else{
 				writeLine(af.VisualizeAsFormattedTree(CharFormat.ResetAll, new CharFormat(purple), CharFormat.ResetAll));
 			}
 		}else{
-			if(!dep.config.GetCamp<bool>("useColors")){
+			if(!dep.config.GetValue<bool>("useColors")){
 				writeLine(af.Visualize());
 			}else{
 				writeLine(af.VisualizeFormatted(new CharFormat(purple), CharFormat.ResetAll));
@@ -1114,7 +1119,7 @@ public class Editor{
 	}
 	
 	public static void info(){
-		writeLine("The current version of AshFile Editor is v3.1.1", purple);
+		writeLine("The current version of AshFile Editor is v3.1.2", purple);
 		writeLine("This version is prepared to support v3 AshFiles", purple);
 		writeLine();
 		writeLine("It was made by Siljam for the AshProject", red);
@@ -1146,7 +1151,7 @@ public class Editor{
 	}
 	
 	public static void writeLine(string s, Color3 c){
-		if(!dep.config.GetCamp<bool>("useColors")){
+		if(!dep.config.GetValue<bool>("useColors")){
 			write(s);
 			return;
 		}
@@ -1156,7 +1161,7 @@ public class Editor{
 	}
 	
 	public static void writeLine(object s, Color3 c){
-		if(!dep.config.GetCamp<bool>("useColors")){
+		if(!dep.config.GetValue<bool>("useColors")){
 			write(s);
 			return;
 		}
@@ -1174,7 +1179,7 @@ public class Editor{
 	}
 	
 	public static void write(string s, Color3 c){
-		if(!dep.config.GetCamp<bool>("useColors")){
+		if(!dep.config.GetValue<bool>("useColors")){
 			write(s);
 			return;
 		}
@@ -1184,7 +1189,7 @@ public class Editor{
 	}
 	
 	public static void write(object s, Color3 c){
-		if(!dep.config.GetCamp<bool>("useColors")){
+		if(!dep.config.GetValue<bool>("useColors")){
 			write(s);
 			return;
 		}
