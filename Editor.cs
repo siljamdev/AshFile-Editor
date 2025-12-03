@@ -75,6 +75,10 @@ public class Editor{
 				case "load":
 					load();
 					break;
+				case "openpw":
+				case "loadpw":
+					loadpw();
+					break;
 				case "save":
 					save();
 					break;
@@ -113,6 +117,10 @@ public class Editor{
 				case "rename":
 				case "renamecamp":
 					renameCamp();
+					break;
+				case "password":
+				case "pw":
+					setPassword();
 					break;
 				case "tostring":
 				case "tostr":
@@ -233,6 +241,10 @@ public class Editor{
 		hasBeenSaved = false;
 	}
 	
+	public static void setPassword(){
+		af.password = askPassword();
+	}
+	
 	public static Type getTypeFromEnum(AshFileType fileType){
 		switch (fileType){
 			case AshFileType.String: return typeof(string);
@@ -252,6 +264,7 @@ public class Editor{
 			case AshFileType.Vec4: return typeof(Vec4); // Example for Vec4
 			case AshFileType.Bool: return typeof(bool);
 			case AshFileType.Date: return typeof(Date);
+			case AshFileType.Decimal: return typeof(Decimal);
 			default: return typeof(object); // Default case if no matching type
 		}
 	}
@@ -274,6 +287,7 @@ public class Editor{
 		if (type == typeof(Vec4)) return AshFileType.Vec4;
 		if (type == typeof(bool)) return AshFileType.Bool;
 		if (type == typeof(Date)) return AshFileType.Date;
+		if (type == typeof(Decimal)) return AshFileType.Decimal;
 	
 		return AshFileType.Default; // Default case if no matching type
 	}
@@ -579,6 +593,16 @@ public class Editor{
 				}
 				o = (Date) dt;
 				return true;
+			case AshFileType.Decimal:
+				decimal dec;
+				if(!decimal.TryParse(answer, out dec)){
+					writeLine("That number is in an invalid format. Please enter again.", error);
+					writeLine();
+					o = null;
+					return false;
+				}
+				o = dec;
+				return true;
 			default:
 				writeLine();
 				o = null;
@@ -695,6 +719,8 @@ public class Editor{
 			case "date":
 			case "time":
 				return AshFileType.Date;
+			case "decimal":
+				return AshFileType.Decimal;
 			default:
 				return AshFileType.Default;
 		}
@@ -736,6 +762,8 @@ public class Editor{
 				return "Boolean";
 			case AshFileType.Date:
 				return "Date";
+			case AshFileType.Decimal:
+				return "Fixed point decimal number";
 			case AshFileType.Default:
 			default:
 				return "Unknown Type: " + (int)t;
@@ -748,7 +776,7 @@ public class Editor{
 			writeLine("There is no path asociated with this file", error);
 			return;
 		}
-		if(!loadFromPath()){
+		if(!loadFromPath(af.password)){
 			return;
 		}
 		writeLine(Path.GetFileName(path) + " reloaded succesfully.", purple);
@@ -786,6 +814,17 @@ public class Editor{
 		hasBeenSaved = true;
 	}
 	
+	public static void loadpw(){
+		askToSave();
+		askPath();
+		string password = askPassword();
+		if(!loadFromPath(password)){
+			return;
+		}
+		writeLine(Path.GetFileName(path) + " loaded succesfully.", purple);
+		hasBeenSaved = true;
+	}
+	
 	public static void import(){
 		askToSave();
 		write("Please enter the text: ", paleRed);
@@ -809,6 +848,12 @@ public class Editor{
 		write("Please enter the path: ", paleRed);
 		string answer = Console.ReadLine();
 		path = removeQuotes(answer);
+	}
+	
+	public static string askPassword(){
+		write("Please enter the password (leave empty for none): ", paleRed);
+		string answer = Console.ReadLine();
+		return answer == "" ? null : answer;
 	}
 	
 	public static void askToSave(){
@@ -836,27 +881,31 @@ public class Editor{
 	}
 	
 	public static void saveToPath(){
-		af.Save(path);
-		
-		handleAshFileErrors();
+		try{
+			af.Save(path);
+		}catch(Exception e){
+			writeLine("An error occured trying to save the file. Here is more info:", error);
+			writeLine(e);
+		}
 	}
 	
-	public static bool loadFromPath(){
+	public static bool loadFromPath(string password = null){
 		try{
 			if(!File.Exists(path)){
 				path = null;
 				writeLine("Could not load from path becaue the file doesnt exist.", error);
 				return false;
 			}
-			af.Load(path);
-			
-			handleAshFileErrors();
+			af.Load(path, password);
 			
 			return true;
-		} catch(Exception e){
+		}catch(Exception e){
 			writeLine("An error occured trying to open the file. Here is more info:", error);
-			writeLine("Message: " + e.Message);
-			writeLine("Stack Trace: " + e.StackTrace);
+			writeLine(e);
+			
+			if(e.Message == "File is password protected, and no password was provided"){
+				writeLine("Tip: try opening the file with 'loadpw'", paleRed);
+			}
 			
 			return false;
 		}
@@ -893,7 +942,6 @@ public class Editor{
 		string answer = Console.ReadLine();
 		
 		if(!AshFile.TryParse(answer, out AshFile a)){
-			handleAshFileParseErrors();
 			return;
 		}
 		
@@ -918,24 +966,6 @@ public class Editor{
 		return p;
 	}
 	
-	public static void handleAshFileErrors(){
-		if(AshFile.GetErrorCount() > 0){
-			writeLine("Errors occured while reading or saving the file, here is more info:", error);
-			writeLine("Error count: " + AshFile.GetErrorCount());
-			writeLine("Error log: " + AshFile.GetErrorLog());
-		}
-		AshFile.EmptyErrors();
-	}
-	
-	public static void handleAshFileParseErrors(){
-		if(AshFile.GetErrorCount() > 0){
-			writeLine("Errors occured while parsing, here is more info:", error);
-			writeLine("Error count: " + AshFile.GetErrorCount());
-			writeLine("Error log: " + AshFile.GetErrorLog());
-		}
-		AshFile.EmptyErrors();
-	}
-	
 	public static void printHelp(){
 		writeLine("The list of commands is:", purple);
 		writeLine();
@@ -953,11 +983,15 @@ public class Editor{
 		
 		write("'");
 		write("info", paleRed);
-		writeLine("' for getting information about the Editor (version, author...)");
+		writeLine("' for getting information about the Editor (version, author...).");
 		
 		write("'");
 		write("load", paleRed);
 		writeLine("' for loading a file.");
+		
+		write("'");
+		write("loadpw", paleRed);
+		writeLine("' for loading a password protected file.");
 		
 		write("'");
 		write("save", paleRed);
@@ -981,7 +1015,7 @@ public class Editor{
 		
 		write("'");
 		write("see", paleRed);
-		writeLine("' for seeing the whole file. The camp names will display first, and then the values");
+		writeLine("' for seeing the whole file. The camp names will display first, and then the values.");
 		
 		write("'");
 		write("set", paleRed);
@@ -998,6 +1032,10 @@ public class Editor{
 		write("'");
 		write("rename", paleRed);
 		writeLine("' for renaming a camp.");
+		
+		write("'");
+		write("password", paleRed);
+		writeLine("' for changig the current password.");
 		
 		write("'");
 		write("tojson", paleRed);
@@ -1101,6 +1139,10 @@ public class Editor{
 		write("double", paleRed);
 		writeLine("' for 64-bit floating-point numbers (numbers with decimals).");
 		
+		write("'");
+		write("decimal", paleRed);
+		writeLine("' for 128-bit fixed-point decimal numbers (C#'s 'decimal').");
+		
 		writeLine();
 		writeLine("Note: Type names are case-insensitive.", purple);
 		writeLine();
@@ -1119,8 +1161,8 @@ public class Editor{
 	}
 	
 	public static void info(){
-		writeLine("The current version of AshFile Editor is v3.1.2", purple);
-		writeLine("This version is prepared to support v3 AshFiles", purple);
+		writeLine("The current version of AshFile Editor is v4.0.0", purple);
+		writeLine("This version is prepared to support V4 AshFiles", purple);
 		writeLine();
 		writeLine("It was made by Siljam for the AshProject", red);
 	}

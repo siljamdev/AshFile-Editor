@@ -22,10 +22,10 @@ You can get the value of a camp in great detail with the command `get`.
 You can delete a camp with the command `delete`.  
 You can change the name of a camp with the command `rename`.  
 
-The Editor is in the version v3.X.X and supports v3 AshFiles.
+The Editor is in the version v4.X.X and supports V4 AshFiles.
 
 ## Installation
-Download the portable windows executable or built it youself for linux/mac.
+Download the portable windows and linux executables or build it youself for mac.
 
 ## NO_COLOR
 This software follows the [NO_COLOR standard](https://no-color.org/).
